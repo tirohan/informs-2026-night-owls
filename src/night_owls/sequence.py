@@ -270,15 +270,14 @@ def main():
         manifest["epochs_per_run"] = epochs
         np.savez_compressed(args.output_dir / "sequence_oof.npz", oof=oof, truth=y, fips=fips)
         print("out-of-fold:", {k: round(v, 6) for k, v in scores.items()}, flush=True)
-    chosen = int(np.median(epochs)) if epochs else int(SEQ_CONFIG["fallback_epochs"])
-    manifest["final_epochs"] = chosen
     half_life = estimate_half_life(y, last)
     manifest["final_half_life_h"] = half_life
+    manifest["final_fit"] = "early-stopping holdout, same protocol as cross-validation"
     Xall = with_prior_channel(X, last[:, None] * np.exp2(-LEAD[None, :] / half_life))
     Xtest = with_prior_channel(Xt, last_t[:, None] * np.exp2(-LEAD[None, :] / half_life))
     preds = []
     for s in range(SEQ_CONFIG["seeds"]):
-        pred, used = fit_predict(Xall, y, Xtest, args.seed + 1000 + s, fixed_epochs=chosen)
+        pred, used = fit_predict(Xall, y, Xtest, args.seed + 1000 + s, strata=strata)
         preds.append(pred)
         print(f"final fit seed {s}: {used} epochs, elapsed {time.time() - started:.0f}s", flush=True)
     np.savez_compressed(args.output_dir / "sequence_test.npz", fips=fips_t, pred=np.mean(preds, axis=0))

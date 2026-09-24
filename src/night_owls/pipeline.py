@@ -1,4 +1,4 @@
-"""Tree-stack training: three members, nested lead-bucket weights, test trajectories.
+"""Tree-stack training: two members, nested lead-bucket weights, test trajectories.
 
 Seed offsets, kept identical to the documented schedule:
   args.seed + k
@@ -53,6 +53,7 @@ def main():
     parser.add_argument("--no-nested", action="store_true")
     parser.add_argument("--ablations", action="store_true")
     parser.add_argument("--no-final", action="store_true")
+    parser.add_argument("--drop-blocks", nargs="*", default=[])
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     self_test()
@@ -68,12 +69,12 @@ def main():
         raise ValueError("Train/test county overlap.")
     context = pd.concat([train, test], ignore_index=True, sort=False)
     log("Building causal feature panels (cutoff outages, full-window weather, neighbor cutoff OSI).")
-    x = build_inputs(train, context=context)
-    test_x = build_inputs(test, context=context)
+    x = build_inputs(train, context=context, drop_blocks=tuple(args.drop_blocks))
+    test_x = build_inputs(test, context=context, drop_blocks=tuple(args.drop_blocks))
     y = train["osi"].to_numpy().reshape(-1, 216)[:, 72:]
     if len(y) != 239 or len(test_x.fips) != 63 or x.feature_names != test_x.feature_names:
         raise ValueError("Unexpected county counts or feature columns.")
-    audit = leakage_test(train, x, context=context)
+    audit = leakage_test(train, x, context=context, drop_blocks=tuple(args.drop_blocks))
     log(f"Leakage mutation test passed. Panel {x.panel.shape}.")
 
     county = train.drop_duplicates("fipsCode").set_index("fipsCode").loc[x.fips].reset_index()
@@ -91,7 +92,7 @@ def main():
             log(f"Outer fold {k + 1}/{args.folds}: {len(tr)} training / {len(va)} validation counties.")
             pred = fit_predict_members(x, y, tr, x, va, args.seed + k, args.threads, args.ablations)
             half_lives.append(pred.pop("half_life_h"))
-            n_onset = pred.pop("n_onset_counties")
+            n_onset = pred.pop("n_onset_counties", None)
             importances = {n: pred.pop(n) for n in list(pred) if n.endswith("feature_importance")}
             for name, p in pred.items():
                 oof.setdefault(name, np.full_like(y, np.nan))
@@ -104,7 +105,7 @@ def main():
                 for i, (itr, iva) in enumerate(make_folds(strata[tr], args.inner_folds, args.seed + 100 + k)):
                     ip = fit_predict_members(x, y, tr[itr], x, tr[iva], args.seed + 1000 + k * 10 + i, args.threads)
                     ip.pop("half_life_h")
-                    ip.pop("n_onset_counties")
+                    ip.pop("n_onset_counties", None)
                     for m in inner_pred:
                         inner_pred[m][iva] = ip[m]
                 members_inner = [inner_pred[m] for m in MEMBERS]
@@ -160,7 +161,6 @@ def main():
             "county_bootstrap_ci": county_bootstrap(y, oof[final_model]),
             "paired_vs_direct_gbm": paired_bootstrap(y, oof[final_model], oof["direct_gbm"]),
             "paired_vs_kinetics_gbm": paired_bootstrap(y, oof[final_model], oof["kinetics_gbm"]),
-            "paired_vs_onset_gbm": paired_bootstrap(y, oof[final_model], oof["onset_gbm"]),
             "paired_vs_mean_curve": paired_bootstrap(y, oof[final_model], oof["mean_curve"]),
         }, indent=2))
 
@@ -195,14 +195,14 @@ def main():
         if not args.no_final:
             if template is None:
                 raise FileNotFoundError(f"Required competition file not found: {template_path}")
-            log("Refitting all three members on 239 counties and predicting 63 test counties.")
+            log("Refitting the two tree members on 239 counties and predicting 63 test counties.")
             test_pred = fit_predict_members(
                 x, y, np.arange(len(y)), test_x, np.arange(len(test_x.fips)), args.seed, args.threads,
             )
             config["final_half_life_h"] = test_pred.pop("half_life_h")
-            config["final_onset_counties"] = test_pred.pop("n_onset_counties")
+            test_pred.pop("n_onset_counties", None)
             curves = apply_bucket_blend(final_bw, [test_pred[m] for m in MEMBERS])
-            write_submission(template, test_x, curves, args.output_dir / "predictions.csv")
+            write_submission(template, test_x, curves, args.output_dir / "predictions_tree_stack.csv")
             np.savez_compressed(
                 args.output_dir / "test_trajectories.npz", fips=test_x.fips, blend=curves,
                 **{m: test_pred[m] for m in MEMBERS + ["prior_only"]},

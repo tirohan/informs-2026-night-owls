@@ -13,7 +13,8 @@ import numpy as np
 import pandas as pd
 
 from night_owls.config import (
-    GUST_EXCESS_MPH, ICING_RH_MIN, ICING_T_MAX_C, ICING_T_MIN_C, LEAD, N_FEATURES, OBSERVED, WEATHER,
+    DROPPED_FEATURE_BLOCKS, GUST_EXCESS_MPH, ICING_RH_MIN, ICING_T_MAX_C, ICING_T_MIN_C,
+    LEAD, N_FEATURES, OBSERVED, WEATHER,
 )
 from night_owls.io import CUTOFF_TS
 
@@ -95,13 +96,15 @@ def _spatial_lookup(fips_codes, context: pd.DataFrame) -> dict[int, tuple[float,
     return out
 
 
-def build_inputs(df: pd.DataFrame, context: pd.DataFrame | None = None) -> Inputs:
+def build_inputs(df: pd.DataFrame, context: pd.DataFrame | None = None, drop_blocks: tuple[str, ...] = ()) -> Inputs:
     """Per-county panel of 144 forecast hours by N_FEATURES.
 
     `context`, when given, supplies neighbor cutoff OSI (train and test observed
     windows). Own history always comes from `df` after the cutoff slice.
     """
     spatial = _spatial_lookup(df["fipsCode"].unique(), context if context is not None else df)
+    extra = set(drop_blocks)
+    drop = set(DROPPED_FEATURE_BLOCKS) | extra
     panels, lasts, flows, fips = [], [], [], []
     names = None
     for county, g0 in df.groupby("fipsCode", sort=True):
@@ -137,13 +140,14 @@ def build_inputs(df: pd.DataFrame, context: pd.DataFrame | None = None) -> Input
         net = float(o.N_t.iloc[-1] - o.R_t.iloc[-1])
         static("hist_net_flow_last", net)
         osi_v = osi.to_numpy(dtype=float)
-        static("hist_osi_slope_3h", (osi_v[-1] - osi_v[-4]) / 3.0)
-        static("hist_osi_slope_6h", (osi_v[-1] - osi_v[-7]) / 6.0)
         peak_obs = float(osi_v.max())
         unrepaired = float(osi_v[-1] / (peak_obs + 1e-4))
-        static("hist_observed_osi_peak", peak_obs)
-        static("hist_unrepaired_fraction", unrepaired)
-        static("hist_rising_at_cutoff", float(net > 0 or osi_v[-1] > osi_v[-7]))
+        if "slope_unrepaired" not in drop:
+            static("hist_osi_slope_3h", (osi_v[-1] - osi_v[-4]) / 3.0)
+            static("hist_osi_slope_6h", (osi_v[-1] - osi_v[-7]) / 6.0)
+            static("hist_observed_osi_peak", peak_obs)
+            static("hist_unrepaired_fraction", unrepaired)
+            static("hist_rising_at_cutoff", float(net > 0 or osi_v[-1] > osi_v[-7]))
         f["lead_since_cutoff_h"] = LEAD
         f["log_lead_since_cutoff"] = np.log1p(LEAD)
         for half_life in [6, 12, 24, 48]:
@@ -182,23 +186,27 @@ def build_inputs(df: pd.DataFrame, context: pd.DataFrame | None = None) -> Input
                 static(f"wx_{col}_{segname}_mean", seg.mean())
                 static(f"wx_{col}_{segname}_max", seg.max())
         gust = w.gust.to_numpy(dtype=float)
-        observed_excess = float(np.maximum(gust[:72] - GUST_EXCESS_MPH, 0).sum())
-        static("wx_observed_gust_excess_30", observed_excess)
-        f["wx_gust_excess_ratio_30"] = np.cumsum(np.maximum(gust[72:] - GUST_EXCESS_MPH, 0)) / (observed_excess + 1.0)
-        f["wx_gust_x_unrepaired"] = gust[72:] * unrepaired
-        f["wx_gust_x_unrepaired_x_soil"] = gust[72:] * unrepaired * w.soil_moist.to_numpy()[72:]
-        icing = (
-            (w.t2m.to_numpy() >= ICING_T_MIN_C) & (w.t2m.to_numpy() <= ICING_T_MAX_C)
-            & (w.r2.to_numpy() >= ICING_RH_MIN) & (w.rain.to_numpy() > 0)
-        ).astype(float)
-        static("wx_icing_hours_observed", icing[:72].sum())
-        static("wx_icing_hours_future", icing[72:].sum())
-        f["wx_icing_hour"] = icing[72:]
-        f["wx_icing_forward_6h"] = np.array([icing[t:t + 6].sum() for t in range(72, 216)])
-        idw, nearest_osi, nearest_km = spatial[int(county)]
-        static("spatial_idw_cutoff_osi", idw)
-        static("spatial_nearest_cutoff_osi", nearest_osi)
-        static("spatial_nearest_km", nearest_km)
+        if "gust_ratio" not in drop:
+            observed_excess = float(np.maximum(gust[:72] - GUST_EXCESS_MPH, 0).sum())
+            static("wx_observed_gust_excess_30", observed_excess)
+            f["wx_gust_excess_ratio_30"] = np.cumsum(np.maximum(gust[72:] - GUST_EXCESS_MPH, 0)) / (observed_excess + 1.0)
+        if "slope_unrepaired" not in drop:
+            f["wx_gust_x_unrepaired"] = gust[72:] * unrepaired
+            f["wx_gust_x_unrepaired_x_soil"] = gust[72:] * unrepaired * w.soil_moist.to_numpy()[72:]
+        if "icing" not in drop:
+            icing = (
+                (w.t2m.to_numpy() >= ICING_T_MIN_C) & (w.t2m.to_numpy() <= ICING_T_MAX_C)
+                & (w.r2.to_numpy() >= ICING_RH_MIN) & (w.rain.to_numpy() > 0)
+            ).astype(float)
+            static("wx_icing_hours_observed", icing[:72].sum())
+            static("wx_icing_hours_future", icing[72:].sum())
+            f["wx_icing_hour"] = icing[72:]
+            f["wx_icing_forward_6h"] = np.array([icing[t:t + 6].sum() for t in range(72, 216)])
+        if "spatial" not in drop:
+            idw, nearest_osi, nearest_km = spatial[int(county)]
+            static("spatial_idw_cutoff_osi", idw)
+            static("spatial_nearest_cutoff_osi", nearest_osi)
+            static("spatial_nearest_km", nearest_km)
         current_names = list(f)
         if names is None:
             names = current_names
@@ -211,7 +219,7 @@ def build_inputs(df: pd.DataFrame, context: pd.DataFrame | None = None) -> Input
         panels.append(panel)
         lasts.append(float(osi_v[-1]))
         flows.append(net)
-    if names is None or len(names) != N_FEATURES:
+    if names is None or (not extra and len(names) != N_FEATURES):
         raise ValueError(f"Expected {N_FEATURES} features, built {0 if names is None else len(names)}.")
     return Inputs(
         np.asarray(fips), np.asarray(panels, dtype=np.float32), names,
@@ -219,11 +227,7 @@ def build_inputs(df: pd.DataFrame, context: pd.DataFrame | None = None) -> Input
     )
 
 
-def leakage_test(df: pd.DataFrame, original: Inputs, context: pd.DataFrame | None = None) -> dict:
-    """Scramble every post-cutoff outage field and every whole-event column.
-
-    The feature tensor, cutoff OSI, and cutoff net flow must be bitwise unchanged.
-    """
+def _poison_frame(df: pd.DataFrame) -> pd.DataFrame:
     poisoned = df.copy()
     future = poisoned.timestamp_et > CUTOFF_TS
     forbidden = [
@@ -234,11 +238,22 @@ def leakage_test(df: pd.DataFrame, original: Inputs, context: pd.DataFrame | Non
     for c in ["peak_pct", "peak_customers", "time_to_restore_h", "event_duration_h", "severity_tier"]:
         if c in poisoned:
             poisoned[c] = 987654.321
-    rebuilt = build_inputs(poisoned, context=context)
+    return poisoned
+
+
+def leakage_test(df: pd.DataFrame, original: Inputs, context: pd.DataFrame | None = None,
+                 drop_blocks: tuple[str, ...] = ()) -> dict:
+    """Scramble post-cutoff outages and whole-event columns on the county frame and on context.
+
+    Neighbour features are built from context, so context is poisoned too. The feature tensor,
+    cutoff OSI, and cutoff net flow must be bitwise unchanged.
+    """
+    poisoned_context = _poison_frame(context) if context is not None else None
+    rebuilt = build_inputs(_poison_frame(df), context=poisoned_context, drop_blocks=drop_blocks)
     for field in ["panel", "last_osi", "net_flow"]:
         if not np.array_equal(getattr(original, field), getattr(rebuilt, field)):
             raise AssertionError(f"Forbidden future data changed feature field {field}.")
     return {
         "passed": True,
-        "test": "Scrambling future outage fields and whole-event summary columns leaves all features bitwise unchanged.",
+        "test": "Scrambling future outage fields and whole-event columns on the county frame and on the neighbour context leaves all features bitwise unchanged.",
     }

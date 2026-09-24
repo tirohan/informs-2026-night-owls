@@ -1,14 +1,13 @@
-"""Final submission: lead-bucket blend of the two-tree stack and the sequence model.
+"""Final submission.
 
-The onset member is left out. Kinetics and direct are stacked by lead, then that stack is
-mixed with the sequence model by the same lead buckets. Weights are fit on out-of-fold
-predictions only.
+Equal half of the nested two-tree stack and the sequence model, unless a cross-fitted
+lead-bucket mix beats that half on a paired county bootstrap at every horizon
+(95% interval of the RMSE difference entirely below zero). The onset member is not in the blend.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -38,63 +37,88 @@ def main():
     if not (np.array_equal(dev["fips"], seq_oof["fips"]) and np.allclose(dev["truth"], seq_oof["truth"])):
         raise ValueError("Out-of-fold arrays are not aligned.")
     y = dev["truth"]
-    tree_weights = fit_bucket_blend(y, [dev["kinetics_gbm"], dev["direct_gbm"]], dev["mean_curve"])
-    stack2 = apply_bucket_blend(tree_weights, [dev["kinetics_gbm"], dev["direct_gbm"]])
-    mix_weights = fit_bucket_blend(y, [stack2, seq_oof["oof"]], dev["mean_curve"])
-    stack2_test = apply_bucket_blend(tree_weights, [tree["kinetics_gbm"], tree["direct_gbm"]])
-    curves = apply_bucket_blend(mix_weights, [stack2_test, seq["pred"]])
+    fold = dev["fold"]
+    stack = dev["stack_bucket_nested"]
+    sequence = seq_oof["oof"]
+    equal = 0.5 * stack + 0.5 * sequence
+    cross = np.zeros_like(y)
+    cross_weights = []
+    for k in range(int(fold.max()) + 1):
+        train = fold != k
+        bw = fit_bucket_blend(y[train], [stack[train], sequence[train]], dev["mean_curve"][train])
+        cross_weights.append(bw)
+        blended = apply_bucket_blend(bw, [stack, sequence])
+        cross[fold == k] = blended[fold == k]
+    comparison = paired_bootstrap(y, cross, equal)
+    bucket_wins = all(comparison[f"t{h:02d}h"]["upper_95"] < 0 for h in HORIZONS)
+    if bucket_wins:
+        mix = fit_bucket_blend(y, [stack, sequence], dev["mean_curve"])
+        curves = apply_bucket_blend(mix, [tree["blend"], seq["pred"]])
+        choice = "lead_bucket"
+    else:
+        mix = np.array([[0.5, 0.5]] * len(LEAD_BUCKETS))
+        curves = 0.5 * tree["blend"] + 0.5 * seq["pred"]
+        choice = "equal_half"
     if not np.isfinite(curves).all() or (curves < 0).any():
         raise ValueError("Invalid blended trajectories.")
-    if (res / "predictions.csv").exists() and not (res / "predictions_equal_average.csv").exists():
-        shutil.copy2(res / "predictions.csv", res / "predictions_equal_average.csv")
-    if (res / "predictions.csv").exists() and not (res / "predictions_tree_stack.csv").exists():
-        shutil.copy2(res / "predictions.csv", res / "predictions_tree_stack.csv")
     test_x = build_inputs(read_frame(args.data_dir / "DM_Test.csv"), context=_context(args.data_dir))
     template = pd.read_csv(args.data_dir / "sample_submission.csv")
+    write_submission(template, test_x, tree["blend"], res / "predictions_tree_stack.csv")
     write_submission(template, test_x, curves, res / "predictions.csv")
+    reported = cross if choice == "lead_bucket" else equal
     np.savez_compressed(
-        res / "final_trajectories.npz", fips=tree["fips"], final=curves,
-        two_tree_stack=stack2_test, sequence=seq["pred"], three_member_stack=tree["blend"],
+        res / "final_trajectories.npz", fips=tree["fips"], final=curves, tree_stack=tree["blend"], sequence=seq["pred"],
     )
+    np.savez_compressed(res / "submitted_oof.npz", fips=dev["fips"], pred=reported, truth=y, fold=fold)
 
-    sequence = seq_oof["oof"]
-    stack3 = dev["stack_bucket_nested"]
-    equal = 0.5 * stack3 + 0.5 * sequence
-    submitted = apply_bucket_blend(mix_weights, [stack2, sequence])
     reference = horizon_scores(y, dev["mean_curve"])
     rows = []
-    for name, pred in [
+    named = [
         ("mean_curve", dev["mean_curve"]), ("kinetics_gbm", dev["kinetics_gbm"]),
-        ("direct_gbm", dev["direct_gbm"]), ("onset_gbm", dev["onset_gbm"]),
-        ("stack_bucket_nested", stack3), ("two_tree_stack", stack2),
-        ("sequence_model", sequence), ("equal_average", equal),
-        ("submitted_lead_blend", submitted),
-    ]:
+        ("direct_gbm", dev["direct_gbm"]), ("stack_bucket_nested", stack),
+        ("sequence_model", sequence), ("equal_half", equal),
+        ("lead_bucket_crossfit", cross), ("submitted", reported),
+    ]
+    if "onset_gbm" in dev.files:
+        named.insert(3, ("onset_gbm", dev["onset_gbm"]))
+    for name, pred in named:
         row = {"model": name, **horizon_scores(y, pred)}
         row["mean_relative_rmse"] = float(np.mean([
             row[f"rmse_t{h:02d}h"] / reference[f"rmse_t{h:02d}h"] for h in HORIZONS
         ]))
         rows.append(row)
     pd.DataFrame(rows).to_csv(res / "blend_metrics.csv", index=False)
-    weight_rows = {
-        f"lead_{lo}-{hi - 1}h": {
-            "kinetics_gbm": float(tw[0]), "direct_gbm": float(tw[1]),
-            "two_tree_stack": float(mw[0]), "sequence_model": float(mw[1]),
-        }
-        for (lo, hi), tw, mw in zip(LEAD_BUCKETS, tree_weights, mix_weights)
-    }
     out = {
-        "submitted": "lead-bucket blend of the kinetics+direct stack and the sequence model; onset excluded",
-        "lead_weights": weight_rows,
-        "final_vs_sequence": paired_bootstrap(y, submitted, sequence),
-        "final_vs_equal_average": paired_bootstrap(y, submitted, equal),
-        "final_vs_three_member_stack": paired_bootstrap(y, submitted, stack3),
-        "final_county_bootstrap_ci": county_bootstrap(y, submitted),
+        "submitted": choice,
+        "bucket_wins_paired_bootstrap": bucket_wins,
+        "cross_fitted_weights": [
+            {f"lead_{lo}-{hi - 1}h": {"tree_stack": float(w[0]), "sequence_model": float(w[1])}
+             for (lo, hi), w in zip(LEAD_BUCKETS, bw)}
+            for bw in cross_weights
+        ],
+        "applied_weights": [
+            {"tree_stack": float(w[0]), "sequence_model": float(w[1])} for w in mix
+        ],
+        "lead_bucket_crossfit_vs_equal_half": comparison,
+        "final_vs_stack": paired_bootstrap(y, reported, stack),
+        "final_vs_sequence": paired_bootstrap(y, reported, sequence),
+        "sequence_vs_stack": paired_bootstrap(y, sequence, stack),
+        "error_correlation_stack_sequence": float(np.corrcoef((stack - y)[:, 1:].ravel(), (sequence - y)[:, 1:].ravel())[0, 1]),
+        "per_fold_pct_change_submitted_vs_stack": {
+            str(k): {
+                f"t{h:02d}h_pct_change": float(100 * (
+                    horizon_scores(y[fold == k], reported[fold == k])[f"rmse_t{h:02d}h"]
+                    / horizon_scores(y[fold == k], stack[fold == k])[f"rmse_t{h:02d}h"] - 1
+                ))
+                for h in HORIZONS
+            }
+            for k in range(int(fold.max()) + 1)
+        },
+        "final_county_bootstrap_ci": county_bootstrap(y, reported),
     }
     (res / "blend_bootstrap.json").write_text(json.dumps(out, indent=2))
     print(pd.DataFrame(rows).to_string(index=False, float_format=lambda v: f"{v:.6f}"))
-    print("Lead weights:", json.dumps(weight_rows, indent=2))
-    print("Submission written: results/predictions.csv")
+    print("Submitted blend:", choice)
 
 
 def _context(data_dir: Path):
