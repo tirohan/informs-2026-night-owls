@@ -34,13 +34,18 @@ plt.rcParams.update({"font.family": "serif", "font.serif": ["Liberation Serif", 
 d = np.load(RES / "development_oof.npz")
 y, fips, last = d["truth"], d["fips"], d["last_osi"]
 stack, kin, direct, clim, prior = d["stack_bucket_nested"], d["kinetics_gbm"], d["direct_gbm"], d["mean_curve"], d["prior_only"]
-# The submitted model is the equal-weight average of the tree stack and the sequence model (combine.py); when the
-# sequence model's out-of-fold predictions are present, the figures and text numbers describe that average.
+# The submitted model is the lead-bucket blend of the kinetics+direct stack and the sequence model.
 seq_path = RES / "sequence_oof.npz"
 if seq_path.exists():
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from night_owls.metrics import apply_bucket_blend, fit_bucket_blend
     s_ = np.load(seq_path)
     assert np.array_equal(s_["fips"], fips) and np.allclose(s_["truth"], y), "sequence_oof.npz is not aligned with development_oof.npz"
-    seq = s_["oof"]; final = 0.5 * stack + 0.5 * seq; FINAL_LABEL = "final: average of stack and sequence model"
+    seq = s_["oof"]
+    stack2 = apply_bucket_blend(fit_bucket_blend(y, [kin, direct], clim), [kin, direct])
+    final = apply_bucket_blend(fit_bucket_blend(y, [stack2, seq], clim), [stack2, seq])
+    FINAL_LABEL = "final: lead-bucket blend"
 else:
     seq = None; final = stack; FINAL_LABEL = "lead-weighted stack"
 manifest = json.load(open(RES / "run_manifest.json"))
@@ -122,7 +127,7 @@ j = np.arange(144)                      # trajectory index: hours after Mar 14 0
 base = smooth(rmse_by_lead(clim)[1:])
 lines = [(kin, BLUE, "kinetics GBM", 1.1), (direct, ORANGE, "direct GBM", 1.1), (stack, VIOLET, "lead-weighted stack", 1.4 if seq is not None else 1.9)]
 if seq is not None:
-    lines += [(seq, AQUA, "sequence model (SSM)", 1.1), (final, INK, "final: equal-weight average", 1.9)]
+    lines += [(seq, AQUA, "sequence model (SSM)", 1.1), (final, INK, "final: lead-bucket blend", 1.9)]
 for p, c, lab, lw in lines:
     ax.plot(j[1:], 100 * (1 - smooth(rmse_by_lead(p)[1:]) / base), color=c, lw=lw, label=lab)
 ax.axhline(0, color=MUTED, lw=.8); ax.set_ylim(-15, 75)
