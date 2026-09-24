@@ -1,0 +1,173 @@
+{
+  "share_sse_by_day": {
+    "sse": {
+      "Mar 14": 2.1,
+      "Mar 15": 0.7,
+      "Mar 16": 0.5,
+      "Mar 17": 0.5,
+      "Mar 18": 0.2,
+      "Mar 19": 0.0
+    },
+    "sst": {
+      "Mar 14": 14.7,
+      "Mar 15": 2.0,
+      "Mar 16": 0.9,
+      "Mar 17": 1.2,
+      "Mar 18": 0.2,
+      "Mar 19": 0.0
+    },
+    "share_sse": {
+      "Mar 14": 53.7,
+      "Mar 15": 17.0,
+      "Mar 16": 12.0,
+      "Mar 17": 12.8,
+      "Mar 18": 4.3,
+      "Mar 19": 0.2
+    },
+    "share_energy": {
+      "Mar 14": 77.8,
+      "Mar 15": 10.4,
+      "Mar 16": 4.8,
+      "Mar 17": 6.1,
+      "Mar 18": 0.9,
+      "Mar 19": 0.0
+    }
+  },
+  "top10_county_share_sse_pct": 61.75706388498164,
+  "top1_county": 42053,
+  "top1_share_pct": 29.29421756635843,
+  "top1_county_prediction_at_true_peak": 0.1113886986573949,
+  "top1_county_max_prediction": 0.1301439006056408,
+  "top1_county_true_peak": 0.5447,
+  "wave2_peak_corr": 0.5984940797874349,
+  "severe_cells_ratio": 0.7781138596977077,
+  "mar14_rmse": 0.01969994259523947,
+  "mar16_17_rmse": 0.00926946968434194,
+  "mar16_17_rmse_clim": 0.01271976102873585,
+  "mar16_17_skill_vs_clim_pct": 27.1254415597839,
+  "submitted_model": "final: average of stack and sequence model",
+  "tree_stack": {
+    "share_sse_by_day": {
+      "sse": {
+        "Mar 14": 2.3,
+        "Mar 15": 0.7,
+        "Mar 16": 0.5,
+        "Mar 17": 0.6,
+        "Mar 18": 0.2,
+        "Mar 19": 0.0
+      },
+      "sst": {
+        "Mar 14": 14.7,
+        "Mar 15": 2.0,
+        "Mar 16": 0.9,
+        "Mar 17": 1.2,
+        "Mar 18": 0.2,
+        "Mar 19": 0.0
+      },
+      "share_sse": {
+        "Mar 14": 54.2,
+        "Mar 15": 15.5,
+        "Mar 16": 12.0,
+        "Mar 17": 14.0,
+        "Mar 18": 4.1,
+        "Mar 19": 0.2
+      },
+      "share_energy": {
+        "Mar 14": 77.8,
+        "Mar 15": 10.4,
+        "Mar 16": 4.8,
+        "Mar 17": 6.1,
+        "Mar 18": 0.9,
+        "Mar 19": 0.0
+      }
+    },
+    "top10_county_share_sse_pct": 59.956168631403976,
+    "top1_county": 42053,
+    "top1_share_pct": 28.92104385350721,
+    "top1_county_prediction_at_true_peak": 0.10064585594344426,
+    "top1_county_max_prediction": 0.11224530119220809,
+    "top1_county_true_peak": 0.5447,
+    "wave2_peak_corr": 0.5886300302074787,
+    "severe_cells_ratio": 0.8017075804924508,
+    "mar14_rmse": 0.020487158188265346,
+    "mar16_17_rmse": 0.009806039461561274,
+    "mar16_17_rmse_clim": 0.01271976102873585,
+    "mar16_17_skill_vs_clim_pct": 22.907046449945412
+  },
+  "sequence_model": {
+    "share_sse_by_day": {
+      "sse": {
+        "Mar 14": 2.4,
+        "Mar 15": 0.8,
+        "Mar 16": 0.5,
+        "Mar 17": 0.5,
+        "Mar 18": 0.2,
+        "Mar 19": 0.0
+      },
+      "sst": {
+        "Mar 14": 14.7,
+        "Mar 15": 2.0,
+        "Mar 16": 0.9,
+        "Mar 17": 1.2,
+        "Mar 18": 0.2,
+        "Mar 19": 0.0
+      },
+      "share_sse": {
+        "Mar 14": 55.0,
+        "Mar 15": 17.5,
+        "Mar 16": 11.9,
+        "Mar 17": 11.3,
+        "Mar 18": 4.0,
+        "Mar 19": 0.2
+      },
+      "share_energy": {
+        "Mar 14": 77.8,
+        "Mar 15": 10.4,
+        "Mar 16": 4.8,
+        "Mar 17": 6.1,
+        "Mar 18": 0.9,
+        "Mar 19": 0.0
+      }
+    },
+    "top10_county_share_sse_pct": 62.093304097297995,
+    "top1_county": 42053,
+    "top1_share_pct": 24.965414334024977,
+    "top1_county_prediction_at_true_peak": 0.12213154137134552,
+    "top1_county_max_prediction": 0.1480425000190735,
+    "top1_county_true_peak": 0.5447,
+    "wave2_peak_corr": 0.5670189713104374,
+    "severe_cells_ratio": 0.7545201375482373,
+    "mar14_rmse": 0.02102940005967571,
+    "mar16_17_rmse": 0.009463717869081284,
+    "mar16_17_rmse_clim": 0.01271976102873585,
+    "mar16_17_skill_vs_clim_pct": 25.59830449879267
+  },
+  "half_life_median_h": 13.085255691197283,
+  "half_life_iqr_h": [
+    8.098828677944326,
+    18.38934528345615
+  ],
+  "n_big_counties": 74,
+  "mar14_rmse_reference": {
+    "prior": 0.0227108301698675,
+    "decay24": 0.022665499185408392,
+    "clim": 0.04733380646918893
+  },
+  "figure1_cutoff": {
+    "full_record_index": 71,
+    "timestamp": "2026-03-13 23:00",
+    "first_withheld_index": 72
+  },
+  "feature_gain_share_pct": {
+    "direct_gbm": {
+      "observed outage history": 14.216728452416705,
+      "weather": 28.085466449802794,
+      "lead / decay coordinate": 57.69780509778048
+    },
+    "kinetics_gbm": {
+      "observed outage history": 27.570779043242545,
+      "weather": 59.17544127892715,
+      "lead / decay coordinate": 13.253779677830343
+    }
+  }
+}

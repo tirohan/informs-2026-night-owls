@@ -1,0 +1,8 @@
+County internal points for the 302 challenge counties (IN, OH, PA, WV).
+
+Source: US Census Bureau Gazetteer national county file (Gaz_counties_national.zip),
+internal point latitude/longitude (INTPTLAT, INTPTLONG). All 302 FIPS codes in
+DM_Train.csv and DM_Test.csv matched. These coordinates are static geography.
+They are not model labels and do not depend on the storm window.
+
+The loader uses fips, latitude, and longitude only.
