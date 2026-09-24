@@ -78,6 +78,12 @@ class DataBoundaryTests(unittest.TestCase):
     def test_leakage_mutation(self):
         self.assertTrue(leakage_test(self.small, self.features)["passed"])
 
+    def test_neighbour_context_is_covered_by_the_mutation_test(self):
+        context = pd.concat([self.train, self.test], ignore_index=True, sort=False)
+        built = build_inputs(self.small, context=context)
+        self.assertIn("spatial_idw_cutoff_osi", built.feature_names)
+        self.assertTrue(leakage_test(self.small, built, context=context)["passed"])
+
     def test_future_customer_counts_not_used(self):
         bad = self.small.copy(); bad.loc[bad.timestamp_et > CUTOFF, "customersTracked"] = 123456789
         np.testing.assert_array_equal(build_inputs(bad).panel, self.features.panel)
@@ -91,10 +97,11 @@ class DataBoundaryTests(unittest.TestCase):
         self.assertEqual(self.features.panel.shape, (3, 144, N_FEATURES))
         forbidden = {"fipsCode", "timestamp_et", "stateAbbr", "severity_tier", "peak_pct", "peak_customers", "time_to_restore_h"}
         self.assertFalse(forbidden & set(self.features.feature_names))
-        for name in ("hist_unrepaired_fraction", "hist_osi_slope_3h", "hist_rising_at_cutoff",
-                     "wx_gust_excess_ratio_30", "wx_gust_x_unrepaired_x_soil", "wx_icing_hour",
-                     "spatial_idw_cutoff_osi", "spatial_nearest_cutoff_osi"):
+        for name in ("spatial_idw_cutoff_osi", "spatial_nearest_cutoff_osi", "spatial_nearest_km"):
             self.assertIn(name, self.features.feature_names)
+        for name in ("hist_unrepaired_fraction", "hist_osi_slope_3h", "wx_gust_excess_ratio_30",
+                     "wx_gust_x_unrepaired", "wx_icing_hour"):
+            self.assertNotIn(name, self.features.feature_names)
         self.assertTrue(np.isfinite(self.features.panel).all())
 
     def test_reconstructed_osi_matches_supplied(self):
@@ -158,8 +165,7 @@ class RegimeTests(unittest.TestCase):
     def test_county_multiplier_and_onset_mask(self):
         from night_owls.weights import county_multipliers, onset_training_index
         weights = county_multipliers(np.array([0.06, 0.0]), np.array([0.01, -0.1]), np.array([0.02, 0.04]))
-        self.assertAlmostEqual(weights[0], 10.0)
-        self.assertAlmostEqual(weights[1], 1.0)
+        self.assertTrue(np.allclose(weights, 1.0))
         chosen = onset_training_index(np.array([0.001, 0.02, 0.0]), np.array([0.0, -1.0, 0.1]),
                                       np.array([0, 1, 2]), minimum=1)
         np.testing.assert_array_equal(chosen, [1, 2])

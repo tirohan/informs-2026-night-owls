@@ -12,6 +12,7 @@ __all__ = [
     "LEAD_BUCKETS", "WEATHER", "OBSERVED", "MEMBERS", "N_FEATURES",
     "KINETICS_PARAMS", "DIRECT_PARAMS", "ONSET_PARAMS", "LGB_FIXED",
     "COUNTY_WEIGHT_ALPHA", "COUNTY_WEIGHT_BETA", "ONSET_OSI_MIN", "ONSET_MIN_COUNTIES",
+    "DROPPED_FEATURE_BLOCKS",
     "ICING_T_MIN_C", "ICING_T_MAX_C", "ICING_RH_MIN", "GUST_EXCESS_MPH",
     "SEQ_CONFIG",
 ]
@@ -43,9 +44,12 @@ WEATHER = [
 ]
 OBSERVED = ["outageCount", "outage_pct", "P_t", "N_t", "D_t", "R_t"]
 
-# Three tree members. The sequence model is a separate view, averaged 1/2 with their stack.
-MEMBERS = ["kinetics_gbm", "direct_gbm", "onset_gbm"]
-N_FEATURES = 222
+# Submitted tree stack. The onset member is an ablation only.
+MEMBERS = ["kinetics_gbm", "direct_gbm"]
+# 206 base features plus the three cutoff-neighbour features. Icing, slope/unrepaired, and the
+# gust-excess ratio each raised t+24h and t+48h RMSE when added one block at a time.
+N_FEATURES = 209
+DROPPED_FEATURE_BLOCKS = ("icing", "slope_unrepaired", "gust_ratio")
 
 KINETICS_PARAMS = dict(
     n_estimators=350, learning_rate=0.035, num_leaves=15, max_depth=5, min_child_samples=100,
@@ -59,10 +63,10 @@ DIRECT_PARAMS = dict(
 ONSET_PARAMS = dict(KINETICS_PARAMS)
 LGB_FIXED = dict(objective="regression", verbosity=-1, deterministic=True, force_col_wise=True, max_bin=127)
 
-# w_c = 1 + alpha * 1[N-R > 0] + beta * OSI_cut / median(positive OSI_cut on the fit's training counties).
-# Midpoints of the inner-fold grid {2, 5, 10} x {1, 2, 4}. Fixed so the submitted run has no extra search.
-COUNTY_WEIGHT_ALPHA = 5.0
-COUNTY_WEIGHT_BETA = 2.0
+# County reweighting moved the loss off the official pooled RMSE (about 1–2% worse at every
+# horizon on the two-tree stack). Both coefficients stay at zero: every county has weight 1.
+COUNTY_WEIGHT_ALPHA = 0.0
+COUNTY_WEIGHT_BETA = 0.0
 ONSET_OSI_MIN = 0.01
 ONSET_MIN_COUNTIES = 25
 
@@ -73,5 +77,5 @@ GUST_EXCESS_MPH = 30.0
 
 SEQ_CONFIG = dict(
     d_model=24, n_layers=2, d_state=8, d_conv=4, expand=2, dropout=0.1, lr=3e-3, weight_decay=1e-2,
-    batch_size=64, max_epochs=120, patience=25, es_fraction=0.15, seeds=4, fallback_epochs=40,
+    batch_size=64, max_epochs=120, patience=25, es_fraction=0.15, seeds=4,
 )

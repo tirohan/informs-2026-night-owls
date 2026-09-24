@@ -1,4 +1,7 @@
-"""Three LightGBM members on one causal panel: decay residual, direct level, delayed onset."""
+"""Two LightGBM members on one causal panel: decay residual and direct level.
+
+The onset member is fit only when ablations=True.
+"""
 from __future__ import annotations
 
 import numpy as np
@@ -16,11 +19,10 @@ def _fit_lgb(x_rows, y_rows, weights, params, seed, threads):
 
 
 def fit_predict_members(x, y, train_idx, query, query_idx, seed, threads, ablations: bool = False):
-    """Fit the three members on train_idx and predict query_idx.
+    """Fit the submitted members on train_idx and predict query_idx.
 
     Lead 0 is excluded from training (it is never scored) and is still predicted so the
-    trajectory is complete. County multipliers use the training-fold median only.
-    The onset member is fit on counties with cutoff OSI > 0.01 or positive net flow.
+    trajectory is complete. County multipliers are 1. The onset member is an ablation.
     """
     train_idx = np.asarray(train_idx)
     query_idx = np.asarray(query_idx)
@@ -38,23 +40,22 @@ def fit_predict_members(x, y, train_idx, query, query_idx, seed, threads, ablati
     out["kinetics_gbm"] = np.maximum(prior_query + kin.predict(xq).reshape(-1, 144), 0)
     direct = _fit_lgb(xt, y[train_idx, 1:].ravel(), weights, DIRECT_PARAMS, seed, threads)
     out["direct_gbm"] = np.maximum(direct.predict(xq).reshape(-1, 144), 0)
-
-    onset_idx = onset_training_index(x.last_osi, x.net_flow, train_idx)
-    onset_mask = np.isin(train_idx, onset_idx)
-    xt_onset = x.panel[onset_idx, 1:].reshape(-1, x.panel.shape[-1])
-    prior_onset = restoration_prior(x.last_osi[onset_idx], half_life)
-    onset = _fit_lgb(
-        xt_onset,
-        (y[onset_idx, 1:] - prior_onset[:, 1:]).ravel(),
-        lead_row_weights(multipliers[onset_mask], lead_w),
-        ONSET_PARAMS, seed, threads,
-    )
-    out["onset_gbm"] = np.maximum(prior_query + onset.predict(xq).reshape(-1, 144), 0)
     out["prior_only"] = np.maximum(prior_query, 0)
     out["mean_curve"] = np.tile(y[train_idx].mean(axis=0), (len(query_idx), 1))
-    out["n_onset_counties"] = int(len(onset_idx))
 
     if ablations:
+        onset_idx = onset_training_index(x.last_osi, x.net_flow, train_idx)
+        onset_mask = np.isin(train_idx, onset_idx)
+        xt_onset = x.panel[onset_idx, 1:].reshape(-1, x.panel.shape[-1])
+        prior_onset = restoration_prior(x.last_osi[onset_idx], half_life)
+        onset = _fit_lgb(
+            xt_onset,
+            (y[onset_idx, 1:] - prior_onset[:, 1:]).ravel(),
+            lead_row_weights(multipliers[onset_mask], lead_w),
+            ONSET_PARAMS, seed, threads,
+        )
+        out["onset_gbm"] = np.maximum(prior_query + onset.predict(xq).reshape(-1, 144), 0)
+        out["n_onset_counties"] = int(len(onset_idx))
         prior24 = restoration_prior(x.last_osi[train_idx], 24.0)
         kin24 = _fit_lgb(xt, (y[train_idx, 1:] - prior24[:, 1:]).ravel(), weights, KINETICS_PARAMS, seed, threads)
         out["kinetics_gbm_hl24"] = np.maximum(
@@ -67,9 +68,9 @@ def fit_predict_members(x, y, train_idx, query, query_idx, seed, threads, ablati
         )
         out["direct_gbm_uniform_loss"] = np.maximum(uniform.predict(xq).reshape(-1, 144), 0)
         keep = np.array([
-            name.startswith("wx_") or name.startswith("spatial_") or name in (
+            (name.startswith("wx_") or name in (
                 "lead_since_cutoff_h", "log_lead_since_cutoff", "log_customers_observed_median",
-            )
+            )) and "unrepaired" not in name and not name.startswith("spatial_")
             for name in x.feature_names
         ]) & np.array([name != "wx_gust_x_observed_P" for name in x.feature_names])
         wx = _fit_lgb(xt[:, keep], y[train_idx, 1:].ravel(), weights, DIRECT_PARAMS, seed, threads)

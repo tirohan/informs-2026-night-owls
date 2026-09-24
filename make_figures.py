@@ -34,18 +34,20 @@ plt.rcParams.update({"font.family": "serif", "font.serif": ["Liberation Serif", 
 d = np.load(RES / "development_oof.npz")
 y, fips, last = d["truth"], d["fips"], d["last_osi"]
 stack, kin, direct, clim, prior = d["stack_bucket_nested"], d["kinetics_gbm"], d["direct_gbm"], d["mean_curve"], d["prior_only"]
-# The submitted model is the lead-bucket blend of the kinetics+direct stack and the sequence model.
+submitted_path = RES / "submitted_oof.npz"
 seq_path = RES / "sequence_oof.npz"
-if seq_path.exists():
-    import sys
-    sys.path.insert(0, str(ROOT / "src"))
-    from night_owls.metrics import apply_bucket_blend, fit_bucket_blend
+if submitted_path.exists():
+    sub = np.load(submitted_path)
+    assert np.array_equal(sub["fips"], fips)
+    final = sub["pred"]
+    seq = np.load(seq_path)["oof"] if seq_path.exists() else None
+    FINAL_LABEL = "final: fold-held-out submitted blend"
+elif seq_path.exists():
     s_ = np.load(seq_path)
-    assert np.array_equal(s_["fips"], fips) and np.allclose(s_["truth"], y), "sequence_oof.npz is not aligned with development_oof.npz"
+    assert np.array_equal(s_["fips"], fips) and np.allclose(s_["truth"], y)
     seq = s_["oof"]
-    stack2 = apply_bucket_blend(fit_bucket_blend(y, [kin, direct], clim), [kin, direct])
-    final = apply_bucket_blend(fit_bucket_blend(y, [stack2, seq], clim), [stack2, seq])
-    FINAL_LABEL = "final: lead-bucket blend"
+    final = 0.5 * stack + 0.5 * seq
+    FINAL_LABEL = "final: equal-weight average"
 else:
     seq = None; final = stack; FINAL_LABEL = "lead-weighted stack"
 manifest = json.load(open(RES / "run_manifest.json"))

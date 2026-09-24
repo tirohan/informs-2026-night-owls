@@ -17,10 +17,10 @@
       "Mar 19": 0.0
     },
     "share_sse": {
-      "Mar 14": 52.0,
-      "Mar 15": 18.1,
-      "Mar 16": 13.1,
-      "Mar 17": 12.3,
+      "Mar 14": 51.8,
+      "Mar 15": 18.3,
+      "Mar 16": 12.6,
+      "Mar 17": 12.8,
       "Mar 18": 4.4,
       "Mar 19": 0.2
     },
@@ -33,26 +33,26 @@
       "Mar 19": 0.0
     }
   },
-  "top10_county_share_sse_pct": 59.02500726835638,
+  "top10_county_share_sse_pct": 60.82010608005695,
   "top1_county": 42053,
-  "top1_share_pct": 27.38345627794918,
-  "top1_county_prediction_at_true_peak": 0.12877723523663137,
-  "top1_county_max_prediction": 0.1442593185295266,
+  "top1_share_pct": 28.47956575271256,
+  "top1_county_prediction_at_true_peak": 0.12008875837334934,
+  "top1_county_max_prediction": 0.14060717948761808,
   "top1_county_true_peak": 0.5447,
-  "wave2_peak_corr": 0.6347066762331741,
-  "severe_cells_ratio": 0.7988858865239701,
-  "mar14_rmse": 0.01908934426390778,
-  "mar16_17_rmse": 0.009236025587497832,
+  "wave2_peak_corr": 0.6306636924793161,
+  "severe_cells_ratio": 0.8071075160982254,
+  "mar14_rmse": 0.019046463922990333,
+  "mar16_17_rmse": 0.009242365678538467,
   "mar16_17_rmse_clim": 0.01271976102873585,
-  "mar16_17_skill_vs_clim_pct": 27.38837178912196,
-  "submitted_model": "final: lead-bucket blend",
+  "mar16_17_skill_vs_clim_pct": 27.33852736966854,
+  "submitted_model": "final: fold-held-out submitted blend",
   "tree_stack": {
     "share_sse_by_day": {
       "sse": {
-        "Mar 14": 2.3,
-        "Mar 15": 0.7,
-        "Mar 16": 0.6,
-        "Mar 17": 0.7,
+        "Mar 14": 2.2,
+        "Mar 15": 0.6,
+        "Mar 16": 0.5,
+        "Mar 17": 0.6,
         "Mar 18": 0.2,
         "Mar 19": 0.0
       },
@@ -65,11 +65,11 @@
         "Mar 19": 0.0
       },
       "share_sse": {
-        "Mar 14": 52.6,
-        "Mar 15": 15.6,
-        "Mar 16": 12.6,
-        "Mar 17": 15.0,
-        "Mar 18": 4.0,
+        "Mar 14": 53.4,
+        "Mar 15": 15.4,
+        "Mar 16": 12.4,
+        "Mar 17": 14.4,
+        "Mar 18": 4.2,
         "Mar 19": 0.2
       },
       "share_energy": {
@@ -81,18 +81,18 @@
         "Mar 19": 0.0
       }
     },
-    "top10_county_share_sse_pct": 60.50527053304139,
+    "top10_county_share_sse_pct": 59.94562137507936,
     "top1_county": 42053,
-    "top1_share_pct": 27.551768914500993,
-    "top1_county_prediction_at_true_peak": 0.10478949890073694,
-    "top1_county_max_prediction": 0.1185135790439581,
+    "top1_share_pct": 28.450590727582288,
+    "top1_county_prediction_at_true_peak": 0.10620576601046211,
+    "top1_county_max_prediction": 0.11825266735727044,
     "top1_county_true_peak": 0.5447,
-    "wave2_peak_corr": 0.5020072843712239,
-    "severe_cells_ratio": 0.8015136969350061,
-    "mar14_rmse": 0.02065072260073885,
-    "mar16_17_rmse": 0.010354468876557596,
+    "wave2_peak_corr": 0.5810718611562998,
+    "severe_cells_ratio": 0.8036649513064721,
+    "mar14_rmse": 0.02015517440230416,
+    "mar16_17_rmse": 0.009885851772655581,
     "mar16_17_rmse_clim": 0.01271976102873585,
-    "mar16_17_skill_vs_clim_pct": 18.59541344239647
+    "mar16_17_skill_vs_clim_pct": 22.279579385792246
   },
   "sequence_model": {
     "share_sse_by_day": {
@@ -160,14 +160,14 @@
   },
   "feature_gain_share_pct": {
     "direct_gbm": {
-      "observed outage history": 12.548090888172133,
-      "weather": 16.291247112944465,
-      "lead / decay coordinate": 71.16066199888341
+      "observed outage history": 14.148005484957462,
+      "weather": 28.03099072534875,
+      "lead / decay coordinate": 57.8210037896938
     },
     "kinetics_gbm": {
-      "observed outage history": 27.835462582299968,
-      "weather": 42.80862472113199,
-      "lead / decay coordinate": 29.35591269656803
+      "observed outage history": 26.457645874569167,
+      "weather": 60.471909537966425,
+      "lead / decay coordinate": 13.070444587464413
     }
   }
 }
